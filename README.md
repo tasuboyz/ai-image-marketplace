@@ -341,7 +341,7 @@ ALLOWED_FORMATS=jpg,jpeg,png,webp
 
 ### Fase 1 (MVP)
 - [X] Setup base frontend/backend
-- [ ] Autenticazione utenti
+- [X] Autenticazione utenti
 - [ ] Upload e visualizzazione immagini
 - [ ] Galleria con filtri base
 
