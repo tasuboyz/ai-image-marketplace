@@ -217,9 +217,10 @@ export default function Gallery({ onImageSelect }: GalleryProps) {
                     className="w-full h-full object-cover transition-transform duration-200 group-hover:scale-105"
                     loading="lazy"
                   />
-                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                    <p className="text-white font-medium text-sm truncate">{image.filename}</p>
-                    <p className="text-gray-300 text-xs">{image.category}</p>
+                  <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                    <span className="bg-black/70 text-white text-xs px-2 py-1 rounded-full backdrop-blur-sm">
+                      {image.category}
+                    </span>
                   </div>
                 </>
               ) : (
