@@ -25,7 +25,8 @@ const connectDB = async () => {
 
   } catch (error) {
     winston.error('Database connection failed:', error);
-    process.exit(1);
+    // Don't exit process for gallery demo
+    console.log('⚠️  Continuing without database for gallery functionality...');
   }
 };
 

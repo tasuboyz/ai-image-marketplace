@@ -1,14 +1,17 @@
 import { useState, useEffect } from 'react';
 import './App.css';
 import SteemLogin from './components/auth/SteemLogin';
+import Gallery from './components/gallery/Gallery';
 import steemAuthService from './services/steemAuth.service';
 import type { User } from './types/User';
+import type { GalleryImage } from './services/gallery.service';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
   const [showLogin, setShowLogin] = useState(false);
+  const [currentView, setCurrentView] = useState<'home' | 'gallery'>('home');
 
   useEffect(() => {
     // Check if user is already logged in
@@ -36,10 +39,16 @@ function App() {
     setAuthError(error);
   };
 
+  const handleImageSelect = (image: GalleryImage) => {
+    console.log('Selected image:', image);
+    // Here you can add logic to open image in modal, navigate to detail view, etc.
+  };
+
   const handleLogout = async () => {
     try {
       steemAuthService.logout();
       setUser(null);
+      setCurrentView('home');
     } catch (error) {
       console.error('Logout error:', error);
     }
@@ -66,6 +75,28 @@ function App() {
             <nav className="flex space-x-4 items-center">
               {user ? (
                 <div className="flex items-center space-x-4">
+                  <div className="flex items-center space-x-2">
+                    <button
+                      onClick={() => setCurrentView('home')}
+                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                        currentView === 'home'
+                          ? 'bg-primary-100 text-primary-700'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      Home
+                    </button>
+                    <button
+                      onClick={() => setCurrentView('gallery')}
+                      className={`px-3 py-1 rounded-md text-sm font-medium transition-colors ${
+                        currentView === 'gallery'
+                          ? 'bg-primary-100 text-primary-700'
+                          : 'text-gray-600 hover:text-gray-900'
+                      }`}
+                    >
+                      Gallery
+                    </button>
+                  </div>
                   <div className="flex items-center space-x-2">
                     {user.avatar && (
                       <img 
@@ -124,6 +155,8 @@ function App() {
               </button>
             </div>
           </div>
+        ) : currentView === 'gallery' && user ? (
+          <Gallery onImageSelect={handleImageSelect} />
         ) : (
           <div className="text-center">
             <h2 className="text-4xl font-bold text-gray-900 mb-4">

@@ -10,6 +10,7 @@ import dotenv from 'dotenv';
 // Import routes
 import authRoutes from './routes/auth.routes.js';
 import imageRoutes from './routes/image.routes.js';
+import galleryRoutes from './routes/gallery.routes.js';
 
 // Import config
 import connectDB from './config/database.js';
@@ -23,8 +24,12 @@ const __dirname = path.dirname(__filename);
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Connect to database
-connectDB();
+// Connect to database (optional for gallery endpoints)
+try {
+  connectDB();
+} catch (error) {
+  console.log('⚠️  Database connection failed, continuing without DB...');
+}
 
 // Security middleware
 app.use(helmet({
@@ -49,11 +54,13 @@ const authLimiter = rateLimit({
   skipSuccessfulRequests: true,
 });
 
-// CORS configuration
+// CORS configuration - Debug mode (permissive)
 const corsOptions = {
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:5173'],
+  origin: '*', // Allow all origins for debugging
   credentials: true,
-  optionsSuccessStatus: 200
+  optionsSuccessStatus: 200,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
 };
 app.use(cors(corsOptions));
 
@@ -79,6 +86,7 @@ app.get('/health', (req, res) => {
 // API routes
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/images', imageRoutes);
+app.use('/api/gallery', galleryRoutes);
 
 // Catch 404 and forward to error handler
 app.use('*', (req, res) => {
