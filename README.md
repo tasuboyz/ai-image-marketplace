@@ -340,7 +340,7 @@ ALLOWED_FORMATS=jpg,jpeg,png,webp
 ## 📈 Roadmap
 
 ### Fase 1 (MVP)
-- [ ] Setup base frontend/backend
+- [X] Setup base frontend/backend
 - [ ] Autenticazione utenti
 - [ ] Upload e visualizzazione immagini
 - [ ] Galleria con filtri base
