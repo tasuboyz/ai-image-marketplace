@@ -1,25 +1,28 @@
 export interface User {
-  _id: string;
+  _id?: string;
   username: string;
-  email: string;
   avatar?: string;
-  bio: string;
-  isActive: boolean;
-  role: 'user' | 'admin';
-  createdAt: string;
-  updatedAt: string;
-}
-
-export interface LoginCredentials {
-  email: string;
-  password: string;
-}
-
-export interface RegisterData {
-  username: string;
-  email: string;
-  password: string;
+  authMethod: 'keychain' | 'traditional';
+  steemProfile?: {
+    reputation?: number;
+    sp?: number;
+    followers?: number;
+    following?: number;
+    postCount?: number;
+    about?: string;
+  };
   bio?: string;
+  isActive?: boolean;
+  role?: 'user' | 'admin';
+  createdAt: string;
+  lastLogin?: string;
+  updatedAt?: string;
+}
+
+export interface SteemAuthCredentials {
+  username: string;
+  signature: string;
+  message: string;
 }
 
 export interface UpdateProfileData {

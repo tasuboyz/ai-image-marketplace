@@ -96,6 +96,12 @@ class SteemAuthService {
                 throw new Error('Steem Keychain extension is not installed');
             }
 
+            // First verify the account exists on Steem blockchain
+            const accountExists = await this.checkSteemAccount(username);
+            if (!accountExists) {
+                throw new Error('Steem account not found. Please check your username.');
+            }
+
             // Request a simple signing operation to verify the user has the key in Keychain
             return new Promise<User>((resolve, reject) => {
                 const message = `Login to AI Image Marketplace: ${new Date().toISOString()}`;
@@ -107,15 +113,17 @@ class SteemAuthService {
                     async (response: KeychainResponse) => {
                         if (response.success) {
                             try {
-                                // Send signature to backend for verification
-                                const authResult = await this.verifyWithBackend(
-                                    username, 
-                                    message, 
-                                    response.result!,
-                                    'keychain'
-                                );
+                                // Create user object from Steem account data
+                                const steemProfile = await this.getSteemProfile(username);
                                 
-                                const user = authResult.user;
+                                const user: User = {
+                                    username: username,
+                                    avatar: this.getUserAvatar(username),
+                                    authMethod: 'keychain',
+                                    steemProfile: steemProfile,
+                                    createdAt: new Date().toISOString(),
+                                    lastLogin: new Date().toISOString()
+                                };
                                 
                                 // Save to memory
                                 this.currentUser = user;
@@ -123,7 +131,7 @@ class SteemAuthService {
                                 // Save to storage if remember is true
                                 if (remember) {
                                     localStorage.setItem('currentUser', JSON.stringify(user));
-                                    localStorage.setItem('authToken', authResult.token);
+                                    localStorage.setItem('authToken', `keychain_${username}_${Date.now()}`);
                                 }
                                 
                                 resolve(user);
@@ -140,6 +148,102 @@ class SteemAuthService {
             console.error('Keychain login failed:', error);
             throw new Error(error instanceof Error ? error.message : 'Authentication failed');
         }
+    }
+
+    /**
+     * Check if a Steem account exists on the blockchain
+     */
+    async checkSteemAccount(username: string): Promise<boolean> {
+        try {
+            // Use Steem API to check if account exists
+            const response = await fetch('https://api.steemit.com', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    method: 'database_api.find_accounts',
+                    params: {
+                        accounts: [username]
+                    },
+                    id: 1
+                })
+            });
+
+            const data = await response.json();
+            return data.result && data.result.accounts && data.result.accounts.length > 0;
+        } catch (error) {
+            console.error('Error checking Steem account:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Get Steem profile information
+     */
+    async getSteemProfile(username: string): Promise<any> {
+        try {
+            // Get account data from Steem blockchain
+            const response = await fetch('https://api.steemit.com', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    jsonrpc: '2.0',
+                    method: 'database_api.find_accounts',
+                    params: {
+                        accounts: [username]
+                    },
+                    id: 1
+                })
+            });
+
+            const data = await response.json();
+            if (data.result && data.result.accounts && data.result.accounts.length > 0) {
+                const account = data.result.accounts[0];
+                
+                // Parse metadata for additional info
+                let metadata = {};
+                try {
+                    if (account.posting_json_metadata) {
+                        metadata = JSON.parse(account.posting_json_metadata);
+                    }
+                } catch (e) {
+                    console.log('Could not parse metadata');
+                }
+
+                return {
+                    reputation: this.calculateReputation(account.reputation),
+                    postCount: account.post_count,
+                    about: (metadata as any)?.profile?.about || '',
+                    ...metadata
+                };
+            }
+            
+            return {};
+        } catch (error) {
+            console.error('Error getting Steem profile:', error);
+            return {};
+        }
+    }
+
+    /**
+     * Calculate reputation from raw reputation value
+     */
+    private calculateReputation(rep: string): number {
+        if (!rep) return 25;
+        
+        const reputation = parseInt(rep);
+        if (reputation === 0) return 25;
+        
+        let score = Math.log10(Math.abs(reputation));
+        score = Math.max(score - 9, 0);
+        score *= reputation < 0 ? -1 : 1;
+        score = score * 9 + 25;
+        
+        return Math.round(score * 100) / 100;
     }
 
     /**
@@ -183,17 +287,14 @@ class SteemAuthService {
      */
     async verifyAccount(username: string): Promise<VerifyAccountResponse> {
         try {
-            const response = await fetch(`${import.meta.env.VITE_API_URL}/auth/verify/${username}`);
+            const exists = await this.checkSteemAccount(username);
             
-            if (!response.ok) {
-                if (response.status === 404) {
-                    return { exists: false };
-                }
-                throw new Error('Failed to verify account');
+            if (exists) {
+                const profile = await this.getSteemProfile(username);
+                return { exists: true, profile };
             }
-
-            const data = await response.json();
-            return data;
+            
+            return { exists: false };
         } catch (error) {
             console.error('Account verification failed:', error);
             throw error;

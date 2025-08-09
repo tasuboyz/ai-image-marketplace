@@ -29,14 +29,7 @@ export default function SteemLogin({ onSuccess, onError }: SteemLoginProps) {
     setLoading(true);
 
     try {
-      // First verify the account exists
-      const accountCheck = await steemAuthService.verifyAccount(username);
-      
-      if (!accountCheck.exists) {
-        throw new Error('Steem account not found. Please check your username.');
-      }
-
-      // Proceed with Keychain authentication
+      // Proceed with Keychain authentication (it will check account existence internally)
       const user = await steemAuthService.loginWithKeychain(username);
       
       onSuccess?.(user);
