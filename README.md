@@ -62,7 +62,7 @@ src/
 │   └── useUpload.ts             # Hook upload
 ├── services/
 │   ├── api.ts                   # Client API
-│   ├── auth.service.ts          # Servizi autenticazione
+│   ├── steemAuth.service.ts     # Autenticazione Steem Keychain
 │   └── image.service.ts         # Servizi immagini
 ├── types/
 │   ├── Image.ts                 # Tipi TypeScript
@@ -99,7 +99,7 @@ backend/
 │   │   ├── image.routes.js      # Route immagini
 │   │   └── user.routes.js       # Route utenti
 │   ├── services/
-│   │   ├── auth.service.js      # Servizi autenticazione
+│   │   ├── steemAuth.service.js # Servizi autenticazione Steem
 │   │   ├── image.service.js     # Servizi immagini
 │   │   ├── storage.service.js   # Gestione file storage
 │   │   └── email.service.js     # Servizi email
