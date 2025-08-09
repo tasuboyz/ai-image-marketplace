@@ -85,31 +85,47 @@ backend/
 │   ├── controllers/
 │   │   ├── auth.controller.js   # Controller autenticazione
 │   │   ├── image.controller.js  # Controller immagini
+│   │   ├── steem.controller.js  # Controller blockchain Steem
 │   │   └── user.controller.js   # Controller utenti
 │   ├── middleware/
 │   │   ├── auth.middleware.js   # Middleware JWT
 │   │   ├── upload.middleware.js # Middleware upload (multer)
+│   │   ├── steem.middleware.js  # Middleware Steem validation
 │   │   ├── validation.middleware.js # Validazione input
 │   │   └── error.middleware.js  # Gestione errori
 │   ├── models/
 │   │   ├── User.js              # Modello utente (MongoDB)
-│   │   └── Image.js             # Modello immagine
+│   │   ├── Image.js             # Modello immagine
+│   │   ├── SteemPost.js         # Modello post Steem
+│   │   └── Comment.js           # Modello commenti
 │   ├── routes/
 │   │   ├── auth.routes.js       # Route autenticazione
 │   │   ├── image.routes.js      # Route immagini
+│   │   ├── steem.routes.js      # Route blockchain
 │   │   └── user.routes.js       # Route utenti
 │   ├── services/
 │   │   ├── steemAuth.service.js # Servizi autenticazione Steem
+│   │   ├── steemPost.service.js # Servizi pubblicazione
+│   │   ├── steemVoting.service.js # Servizi voting
+│   │   ├── ipfs.service.js      # Servizi IPFS storage
 │   │   ├── image.service.js     # Servizi immagini
 │   │   ├── storage.service.js   # Gestione file storage
 │   │   └── email.service.js     # Servizi email
+│   ├── blockchain/
+│   │   ├── steem.client.js      # Client Steem blockchain
+│   │   ├── keychain.handler.js  # Handler Steem Keychain
+│   │   ├── posting.operations.js # Operazioni posting
+│   │   └── voting.operations.js # Operazioni voting
 │   ├── utils/
 │   │   ├── database.js          # Connessione DB
 │   │   ├── logger.js            # Sistema logging
 │   │   ├── imageProcessor.js    # Elaborazione immagini
+│   │   ├── steemUtils.js        # Utility blockchain
 │   │   └── validators.js        # Validatori
 │   ├── config/
 │   │   ├── database.js          # Config database
+│   │   ├── steem.js             # Config Steem blockchain
+│   │   ├── ipfs.js              # Config IPFS
 │   │   ├── cloudinary.js        # Config storage cloud
 │   │   └── jwt.js               # Config JWT
 │   └── app.js                   # Setup Express
@@ -127,9 +143,15 @@ backend/
   _id: ObjectId,
   username: String,
   email: String,
+  steemUsername: String,        // Username Steem
+  steemPublicKey: String,       // Chiave pubblica Steem
   password: String (hashed),
   avatar: String (URL),
   bio: String,
+  reputation: Number,           // Reputation Steem
+  votingPower: Number,         // Current voting power
+  steemPower: Number,          // STEEM Power amount
+  totalEarnings: Number,       // Total STEEM/SBD earned
   createdAt: Date,
   updatedAt: Date,
   isActive: Boolean
@@ -144,24 +166,121 @@ backend/
   description: String,
   filename: String,
   originalName: String,
-  url: String,
+  url: String,                 // Local/Cloudinary URL
+  ipfsHash: String,           // IPFS hash for blockchain
+  steemUrl: String,           // Steem blockchain URL
   thumbnailUrl: String,
   category: String,
   tags: [String],
   aiModel: String,
   prompt: String,
   uploadedBy: ObjectId (ref: User),
-  likes: Number,
+  steemAuthor: String,        // Steem username
+  steemPermlink: String,      // Steem permlink
+  steemPostId: String,        // Steem post ID
+  likes: Number,              // Local cache
+  steemUpvotes: Number,       // Blockchain upvotes
+  steemDownvotes: Number,     // Blockchain downvotes
+  steemPayout: Number,        // STEEM/SBD earned
   downloads: Number,
   isPublic: Boolean,
+  isOnBlockchain: Boolean,    // Posted to Steem
+  blockchainStatus: String,   // pending, confirmed, failed
   createdAt: Date,
   updatedAt: Date,
   metadata: {
     size: Number,
     dimensions: { width: Number, height: Number },
     format: String,
-    colorSpace: String
+    colorSpace: String,
+    exif: Object              // Extended metadata
   }
+}
+```
+
+### Collection: SteemPosts
+```javascript
+{
+  _id: ObjectId,
+  imageId: ObjectId (ref: Image),
+  author: String,             // Steem username
+  permlink: String,           // Unique post identifier
+  title: String,
+  body: String,               // Markdown content
+  jsonMetadata: Object,       // Custom JSON data
+  tags: [String],
+  created: Date,
+  lastUpdate: Date,
+  netVotes: Number,
+  totalPayoutValue: String,   // "X.XXX SBD"
+  curatorPayoutValue: String,
+  authorPayoutValue: String,
+  pendingPayoutValue: String,
+  cashoutTime: Date,
+  isPayoutDeclined: Boolean,
+  children: Number,           // Comment count
+  beneficiaries: [{
+    account: String,
+    weight: Number            // Percentage (0-10000)
+  }],
+  voters: [{
+    voter: String,
+    weight: Number,
+    rshares: String,
+    time: Date
+  }],
+  status: String,             // active, paid_out, declined
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+### Collection: Comments
+```javascript
+{
+  _id: ObjectId,
+  imageId: ObjectId (ref: Image),
+  parentId: ObjectId (ref: Comment), // For threading
+  steemAuthor: String,        // Steem username
+  steemPermlink: String,      // Comment permlink
+  steemParentPermlink: String, // Parent post/comment
+  content: String,            // Comment text
+  jsonMetadata: Object,
+  netVotes: Number,
+  totalPayoutValue: String,
+  pendingPayoutValue: String,
+  cashoutTime: Date,
+  depth: Number,              // Comment depth level
+  children: [ObjectId],       // Child comments
+  voters: [{
+    voter: String,
+    weight: Number,
+    time: Date
+  }],
+  isEdited: Boolean,
+  editTime: Date,
+  createdAt: Date,
+  updatedAt: Date
+}
+```
+
+### Collection: Votes
+```javascript
+{
+  _id: ObjectId,
+  voter: String,              // Steem username
+  author: String,             // Content author
+  permlink: String,           // Content permlink
+  weight: Number,             // Vote weight (-10000 to 10000)
+  rshares: String,            // Reward shares
+  votingPower: Number,        // Voter's VP when voted
+  timestamp: Date,
+  blockNum: Number,
+  transactionId: String,
+  contentType: String,        // 'post' or 'comment'
+  imageId: ObjectId (ref: Image), // If vote on image post
+  commentId: ObjectId (ref: Comment), // If vote on comment
+  createdAt: Date
 }
 ```
 
@@ -245,20 +364,41 @@ npm install -D nodemon jest supertest
 ### Authentication
 - `POST /api/auth/register` - Registrazione utente
 - `POST /api/auth/login` - Login utente
+- `POST /api/auth/steem-login` - Login con Steem Keychain
 - `GET /api/auth/profile` - Profilo utente corrente
 - `PUT /api/auth/profile` - Aggiorna profilo
+- `POST /api/auth/link-steem` - Collega account Steem
 
 ### Images
 - `GET /api/images` - Lista immagini con filtri
 - `GET /api/images/:id` - Dettagli immagine singola
 - `POST /api/images` - Upload nuova immagine
+- `POST /api/images/:id/publish` - Pubblica su blockchain Steem
 - `PUT /api/images/:id` - Aggiorna immagine (solo proprietario)
 - `DELETE /api/images/:id` - Elimina immagine (solo proprietario)
 - `GET /api/images/user/:userId` - Immagini di un utente
 
+
+<!--
+### Blockchain Interactions
+Queste azioni (voto, commento, follow, pubblicazione su Steem) sono gestite direttamente dal frontend tramite Steem Keychain e non richiedono API backend dedicate.
+-->
+
+### IPFS & Storage
+- `POST /api/ipfs/upload` - Upload file su IPFS
+- `GET /api/ipfs/:hash` - Retrieve file da IPFS
+- `POST /api/ipfs/pin` - Pin file su IPFS
+- `DELETE /api/ipfs/unpin/:hash` - Unpin file
+
 ### Categories
 - `GET /api/categories` - Lista categorie disponibili
 - `GET /api/categories/:name/images` - Immagini per categoria
+
+### Analytics
+- `GET /api/analytics/trending` - Immagini trending
+- `GET /api/analytics/top-earners` - Top earning images
+- `GET /api/analytics/user-stats/:username` - Statistiche utente
+- `GET /api/analytics/platform-stats` - Statistiche piattaforma
 
 ## 🎨 Design System
 
@@ -339,25 +479,113 @@ ALLOWED_FORMATS=jpg,jpeg,png,webp
 
 ## 📈 Roadmap
 
-### Fase 1 (MVP)
+### Fase 1 (MVP) - Base Marketplace
 - [X] Setup base frontend/backend
-- [X] Autenticazione utenti
-- [X] Visualizzazione immagini
-- [X] Galleria con filtri base
-- [ ] Upload delle immagini
+- [X] Autenticazione Steem Keychain
+- [X] Visualizzazione immagini dinamica
+- [X] Galleria con filtri e categorie
+- [X] Backend API per gestione immagini
+- [ ] Upload base delle immagini (locale)
 
-### Fase 2 (Enhanced)
-- [ ] Sistema di like e commenti
-- [ ] Categorizzazione avanzata
-- [ ] Search intelligente
-- [ ] Dashboard amministratore
+### Fase 2 (Blockchain Integration) - Steem Integration
+- [ ] **Upload su Blockchain Steem**
+  - [ ] Integrazione libreria per upload immagini su Steem
+  - [ ] Generazione URL permanenti per immagini
+  - [ ] Pubblicazione automatica come post Steem
+  - [ ] Metadata immagini salvate on-chain
+- [ ] **Sistema di Like Blockchain**
+  - [ ] Implementazione upvote/downvote tramite Steem
+  - [ ] Visualizzazione voti reali dalla blockchain
+  - [ ] Integrazione wallet per voting power
+- [ ] **Sistema Commenti Blockchain**
+  - [ ] Commenti salvati come reply su Steem
+  - [ ] Threading dei commenti
+  - [ ] Moderazione decentralizzata
+- [ ] **Monetizzazione**
+  - [ ] Earnings da upvotes (STEEM/SBD)
+  - [ ] Split rewards author/curatori
+  - [ ] Dashboard earnings
 
-### Fase 3 (Advanced)
-- [ ] AI-powered tagging automatico
-- [ ] Sistema di vendita/acquisto
-- [ ] API pubblica
-- [ ] Mobile app (React Native)
+### Fase 3 (Advanced Features) - Enhanced UX
+- [ ] **AI-Powered Features**
+  - [ ] Auto-tagging delle immagini
+  - [ ] Suggerimenti prompts
+  - [ ] Categorizzazione automatica
+- [ ] **Social Features**
+  - [ ] Follow/Following system
+  - [ ] Feed personalizzato
+  - [ ] Notifiche push
+  - [ ] Badge e reputation system
+- [ ] **Marketplace Features**
+  - [ ] NFT integration
+  - [ ] Licensing system
+  - [ ] Commissioni sui download
+  - [ ] Portfolio creators
+
+### Fase 4 (Platform Expansion) - Ecosystem
+- [ ] **Multi-blockchain Support**
+  - [ ] Hive blockchain integration
+  - [ ] Cross-chain bridge
+  - [ ] Multi-wallet support
+- [ ] **API & Developer Tools**
+  - [ ] Public API endpoints
+  - [ ] SDK per developers
+  - [ ] Webhook system
+- [ ] **Mobile & Desktop**
+  - [ ] Progressive Web App
+  - [ ] Mobile app (React Native)
+  - [ ] Desktop app (Electron)
+
+## 🔗 Blockchain Technical Requirements
+
+### Steem Integration Architecture
+```
+Frontend (React)
+    ↓
+Steem Services Layer
+    ↓
+Steem Blockchain
+    ├── Image Upload (via IPFS/Steemit)
+    ├── Post Creation with metadata
+    ├── Voting system (upvote/downvote)
+    └── Comments as replies
+```
+
+### Required Libraries & Tools
+- **Backend**: 
+  - `beem` (Python) per upload e interazioni blockchain
+  - `steem-js` (Node.js) alternativa JavaScript
+  - IPFS client per storage distribuito
+- **Frontend**:
+  - `steem-keychain` per autenticazione
+  - `steem-connect` per OAuth flow
+  - WebSocket per real-time updates
+
+### Blockchain Data Flow
+1. **Upload Process**:
+   ```
+   User selects image → Frontend upload → Backend processes → 
+   Upload to IPFS → Create Steem post → Return URL & permlink
+   ```
+
+2. **Interaction Flow**:
+   ```
+   User action (like/comment) → Steem Keychain signature → 
+   Blockchain transaction → Update local cache → UI refresh
+   ```
+
+### Smart Contract Considerations
+- **Post Format**: JSON metadata con link IPFS
+- **Tags**: Categoria, AI-model, prompt-hash
+- **Custom JSON**: Metadata estesi per filtering
+- **Beneficiaries**: Revenue split configuration
 
 ## 📄 License
 
 MIT License - vedi LICENSE file per dettagli.
+
+## ⚠️ Limitazioni attuali e Note tecniche
+
+- **Commenti, voti e pubblicazione su Steem**: Queste azioni sono già possibili direttamente dal frontend tramite Steem Keychain, senza necessità di backend intermedio. Lato frontend è possibile firmare e inviare transazioni per commentare, votare e pubblicare post su Steem.
+- **Upload immagine e URL permanente**: Attualmente non è possibile, solo da frontend, caricare un'immagine e ottenere un URL permanente (es. IPFS o Steem CDN) in modo sicuro e affidabile. Questa parte richiede ancora una soluzione tecnica (es. backend Python con beem, bridge IPFS, o altro servizio di upload).
+- **Nota**: La roadmap e l'architettura sono pensate per supportare in futuro anche questa funzionalità, non appena sarà individuata una soluzione cross-platform sicura e decentralizzata.
